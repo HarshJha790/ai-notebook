@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mini NotebookLM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f12;
+      --surface:   #14171c;
+      --surface2:  #1b1f27;
+      --border:    #252932;
+      --accent:    #c8a96e;
+      --accent2:   #7ea8be;
+      --text:      #e8e4dc;
+      --muted:     #6b7280;
+      --success:   #5fa87e;
+      --radius:    10px;
+      --transition: 0.25s ease;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+    }
+
+    /* Subtle grid texture */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(200,169,110,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200,169,110,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 20px 80px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .brand-eyebrow {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      opacity: 0.85;
+    }
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, var(--text) 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 300;
+      letter-spacing: 0.01em;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 680px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    }
+
+    .card-section {
+      padding: 32px 36px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-section:last-child { border-bottom: none; }
+
+    .section-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(to right, var(--border), transparent);
+    }
+
+    /* ── Upload zone ── */
+    .upload-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 32px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--transition), background var(--transition);
+      position: relative;
+      background: var(--surface2);
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(200,169,110,0.05);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .upload-icon {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 14px;
+      opacity: 0.5;
+    }
+    .upload-text {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .upload-text strong {
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .file-chosen {
+      margin-top: 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--success);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .file-chosen.visible { display: flex; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 24px;
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13.5px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      border: none;
+      transition: all var(--transition);
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0d0f12;
+      width: 100%;
+      margin-top: 18px;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: #d9bb80;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(200,169,110,0.3);
+    }
+    .btn-primary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn-ask {
+      background: var(--accent2);
+      color: #0d0f12;
+      padding: 11px 20px;
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .btn-ask:hover:not(:disabled) {
+      background: #91bcd1;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(126,168,190,0.3);
+    }
+    .btn-ask:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ── Ask row ── */
+    .ask-row {
+      display: flex;
+      gap: 10px;
+    }
+    .question-input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 11px 16px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 300;
+      outline: none;
+      transition: border-color var(--transition);
+      resize: none;
+    }
+    .question-input::placeholder { color: var(--muted); }
+    .question-input:focus { border-color: var(--accent2); }
+
+    /* ── Answer area ── */
+    .answer-section { min-height: 120px; }
+
+    .answer-placeholder {
+      color: var(--muted);
+      font-size: 13px;
+      font-style: italic;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .answer-bubble {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent2);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      font-size: 14.5px;
+      line-height: 1.75;
+      color: var(--text);
+      display: none;
+      animation: fadeIn 0.35s ease;
+    }
+    .answer-bubble.visible { display: block; }
+
+    .answer-meta {
+      margin-top: 12px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── Loader ── */
+    .loader {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 16px 0;
+    }
+    .loader.visible { display: flex; }
+    .dots span {
+      display: inline-block;
+      width: 6px; height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: #1e2228;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 20px;
+      font-size: 13px;
+      color: var(--text);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 999;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast.error { border-color: #c0544e; color: #e07a76; }
+    .toast.success { border-color: var(--success); color: var(--success); }
+
+    /* ── Status badge ── */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10.5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin-top: 12px;
+    }
+    .status-badge.idle   { background: rgba(107,114,128,0.12); color: var(--muted); }
+    .status-badge.ok     { background: rgba(95,168,126,0.12); color: var(--success); }
+    .status-badge .dot   { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+      40%           { transform: scale(1);   opacity: 1; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 520px) {
+      .card-section { padding: 24px 20px; }
+      .ask-row { flex-direction: column; }
+      .btn-ask { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <p class="brand-eyebrow">AI Document Intelligence</p>
+    <h1>Mini NotebookLM</h1>
+    <p class="subtitle">Upload a PDF, then ask anything about it.</p>
+  </header>
+
+  <div class="card">
+
+    <!-- Upload Section -->
+    <div class="card-section">
+      <p class="section-label">01 — Document</p>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".pdf" />
+        <svg class="upload-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="6" width="22" height="30" rx="3" stroke="#c8a96e" stroke-width="2" fill="none"/>
+          <rect x="16" y="6" width="14" height="10" rx="1" fill="#1b1f27" stroke="#c8a96e" stroke-width="2"/>
+          <path d="M33 28l6 6m0 0l-6 6m6-6H24" stroke="#7ea8be" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p class="upload-text">
+          <strong>Click to browse</strong> or drag & drop<br>
+          <span style="font-size:12px;">PDF files only</span>
+        </p>
+      </div>
+
+      <div class="file-chosen" id="fileChosen">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#5fa87e" stroke-width="1.5"/><path d="M5 8l2.5 2.5L11 5.5" stroke="#5fa87e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="fileNameDisplay"></span>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="uploadBtn" disabled>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4.5 5.5L8 2l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          Upload PDF
+        </button>
+        <span class="status-badge idle" id="uploadStatus">
+          <span class="dot"></span> No document loaded
+        </span>
+      </div>
+    </div>
+
+    <!-- Ask Section -->
+    <div class="card-section">
+      <p class="section-label">02 — Ask</p>
+
+      <div class="ask-row">
+        <textarea
+          class="question-input"
+          id="questionInput"
+          placeholder="What does this document say about…"
+          rows="2"
+        ></textarea>
+        <button class="btn btn-ask" id="askBtn" disabled>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Ask
+        </button>
+      </div>
+    </div>
+
+    <!-- Answer Section -->
+    <div class="card-section answer-section">
+      <p class="section-label">03 — Answer</p>
+
+      <div class="loader" id="loader">
+        <div class="dots">
+          <span></span><span></span><span></span>
+        </div>
+        <span>Thinking through your document…</span>
+      </div>
+
+      <p class="answer-placeholder" id="answerPlaceholder">
+        Your answer will appear here once you ask a question.
+      </p>
+
+      <div class="answer-bubble" id="answerBubble">
+        <div id="answerText"></div>
+        <div class="answer-meta">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3.5l2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span id="answerTime"></span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /card -->
+
+</div><!-- /wrapper -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const API_BASE = 'http://localhost:5000';
+
+  const fileInput      = document.getElementById('fileInput');
+  const uploadZone     = document.getElementById('uploadZone');
+  const uploadBtn      = document.getElementById('uploadBtn');
+  const fileChosen     = document.getElementById('fileChosen');
+  const fileNameDisplay= document.getElementById('fileNameDisplay');
+  const uploadStatus   = document.getElementById('uploadStatus');
+  const questionInput  = document.getElementById('questionInput');
+  const askBtn         = document.getElementById('askBtn');
+  const loader         = document.getElementById('loader');
+  const answerPlaceholder = document.getElementById('answerPlaceholder');
+  const answerBubble   = document.getElementById('answerBubble');
+  const answerText     = document.getElementById('answerText');
+  const answerTime     = document.getElementById('answerTime');
+  const toast          = document.getElementById('toast');
+
+  let documentLoaded = false;
+  let toastTimer;
+
+  // ── Toast ──────────────────────────────────────────────
+  function showToast(msg, type = 'info', duration = 3200) {
+    clearTimeout(toastTimer);
+    toast.textContent = msg;
+    toast.className = `toast ${type} show`;
+    toastTimer = setTimeout(() => toast.className = 'toast', duration);
+  }
+
+  // ── Drag & drop ────────────────────────────────────────
+  uploadZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    uploadZone.classList.add('drag-over');
+  });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type === 'application/pdf') {
+      fileInput.files = e.dataTransfer.files;
+      onFileSelected(f);
+    } else {
+      showToast('Please drop a PDF file.', 'error');
+    }
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) onFileSelected(fileInput.files[0]);
+  });
+
+  function onFileSelected(file) {
+    fileNameDisplay.textContent = file.name;
+    fileChosen.classList.add('visible');
+    uploadBtn.disabled = false;
+    documentLoaded = false;
+    askBtn.disabled = true;
+    setUploadStatus('idle', 'Ready to upload');
+  }
+
+  function setUploadStatus(type, label) {
+    uploadStatus.className = `status-badge ${type}`;
+    uploadStatus.innerHTML = `<span class="dot"></span> ${label}`;
+  }
+
+  // ── Upload ─────────────────────────────────────────────
+  uploadBtn.addEventListener('click', async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = `<span style="opacity:.6">Uploading…</span>`;
+    setUploadStatus('idle', 'Uploading…');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_BASE}/upload`, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+
+      documentLoaded = true;
+      askBtn.disabled = false;
+      setUploadStatus('ok', 'Document ready');
+      showToast('PDF uploaded successfully ✓', 'success');
+    } catch (err) {
+      setUploadStatus('idle', 'Upload failed');
+      showToast(`Upload failed: ${err.message}`, 'error', 5000);
+    } finally {
+      uploadBtn.disabled = false;
+      uploadBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9M4.5 5.5L8 2l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg> Upload PDF`;
+    }
+  });
+
+  // ── Ask ────────────────────────────────────────────────
+  askBtn.addEventListener('click', askQuestion);
+  questionInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !askBtn.disabled) {
+      e.preventDefault();
+      askQuestion();
+    }
+  });
+
+  async function askQuestion() {
+    const question = questionInput.value.trim();
+    if (!question) { showToast('Please enter a question.', 'error'); return; }
+    if (!documentLoaded) { showToast('Upload a PDF first.', 'error'); return; }
+
+    // Show loader, hide answer
+    loader.classList.add('visible');
+    answerPlaceholder.style.display = 'none';
+    answerBubble.classList.remove('visible');
+    askBtn.disabled = true;
+
+    const t0 = Date.now();
+
+    try {
+      const res = await fetch(`${API_BASE}/ask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      answerText.textContent = data.answer ?? data.response ?? JSON.stringify(data);
+      answerTime.textContent = `Response in ${elapsed}s`;
+      answerBubble.classList.add('visible');
+    } catch (err) {
+      showToast(`Error: ${err.message}`, 'error', 5000);
+      answerPlaceholder.style.display = '';
+    } finally {
+      loader.classList.remove('visible');
+      askBtn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
