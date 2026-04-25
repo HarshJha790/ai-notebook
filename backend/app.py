@@ -31,8 +31,6 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 app = Flask(__name__)
 CORS(app)
 
-OLLAMA_URL   = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "phi"
 
 # ─────────────────────────────────────────
 # In-memory RAG state
@@ -119,7 +117,7 @@ def generate_answer_with_groq(question: str, context: str) -> str:
                     "content": f"Context:\n\n{context}\n\nQuestion:\n{question}"
                 }
             ],
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
         )
         return chat_completion.choices[0].message.content
     except Exception as e:
@@ -134,10 +132,10 @@ def generate_answer_with_groq(question: str, context: str) -> str:
 def index():
     return jsonify({
         "status":          "ok",
-        "message":         "Mini NotebookLM backend (v6 — Ollama phi)",
+        "message":         "Mini NotebookLM backend (Groq Llama 3.1)",
         "document_loaded": faiss_index is not None,
         "num_chunks":      len(text_chunks),
-        "llm":             f"Ollama / {OLLAMA_MODEL} @ {OLLAMA_URL}",
+        "llm":             "Groq / llama-3.1-8b-instant",
     })
 
 
@@ -220,8 +218,5 @@ def ask():
 # ─────────────────────────────────────────
 
 if __name__ == "__main__":
-    print(f"✅  Ollama RAG server  |  model: {OLLAMA_MODEL}  |  url: {OLLAMA_URL}")
-    print("    Before starting, make sure:")
-    print("      1. Ollama is running  →  ollama serve")
-    print("      2. phi is installed   →  ollama pull phi")
+    print("✅ Groq RAG server is running!")
     app.run(host="0.0.0.0", port=5000, debug=True)
