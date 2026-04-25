@@ -19,6 +19,10 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
+import os
+from groq import Groq
+
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 # ─────────────────────────────────────────
 # App setup
@@ -99,51 +103,27 @@ def retrieve_top_chunks(question: str, k: int = 4) -> list[dict]:
 # Step 4 — Ollama answer generation
 # ─────────────────────────────────────────
 
-def generate_answer_with_ollama(question: str, context: str) -> str:
-    """
-    Send the question + retrieved context to the local Ollama phi model
-    and return its answer.
-
-    stream=False  →  wait for the complete response before returning,
-                     which keeps the Flask response simple and synchronous.
-    """
-    prompt = f"""You are a helpful assistant.
-Answer the question ONLY using the given context.
-If the context does not contain enough information, say "I don't have enough information in the document to answer that."
-
-Context:
-{context}
-
-Question:
-{question}
-
-Answer clearly and concisely."""
-
+def generate_answer_with_groq(question: str, context: str) -> str:
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model":  OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,   # get full response in one shot
-            },
-            timeout=120,           # phi is fast; 120 s is a generous ceiling
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a helpful AI assistant. "
+                        "Use the provided context to answer the question accurately. "
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"Context:\n\n{context}\n\nQuestion:\n{question}"
+                }
+            ],
+            model="llama3-8b-8192",
         )
-        response.raise_for_status()
-        return response.json().get("response", "").strip()
-
-    except requests.exceptions.ConnectionError:
-        return (
-            "Error: Could not connect to Ollama. "
-            "Make sure Ollama is running (`ollama serve`) and the phi model "
-            "is installed (`ollama pull phi`)."
-        )
-    except requests.exceptions.Timeout:
-        return "Error: Ollama timed out. The model may still be loading — try again in a moment."
-    except requests.exceptions.HTTPError as e:
-        return f"Error: Ollama returned HTTP {e.response.status_code} — {e}"
+        return chat_completion.choices[0].message.content
     except Exception as e:
-        return f"Error: Unexpected problem calling Ollama — {e}"
+        return f"Error calling Groq API: {e}"
 
 
 # ─────────────────────────────────────────
@@ -222,7 +202,7 @@ def ask():
         context = "\n\n---\n\n".join(r["chunk"] for r in top_results)
 
         # 3. Generate a grounded answer with the local phi model
-        answer = generate_answer_with_ollama(question, context)
+        answer = generate_answer_with_groq(question, context)
 
     except Exception as e:
         return jsonify({"error": f"RAG pipeline failed: {e}"}), 500
